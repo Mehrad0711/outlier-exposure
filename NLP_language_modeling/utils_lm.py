@@ -1,8 +1,10 @@
 from torch.autograd import Variable
+import torch
 
 def repackage_hidden(h):
     """Wraps hidden states in new Variables, to detach them from their history."""
-    if type(h) == Variable:
+    # if type(h) == Variable:
+    if isinstance(h, torch.Tensor):
         return Variable(h.data)
     else:
         return tuple(repackage_hidden(v) for v in h)

@@ -13,7 +13,7 @@ import model
 from utils_lm import batchify, get_batch, repackage_hidden
 
 parser = argparse.ArgumentParser(description='Train with OE using cross-entropy to uniform.')
-parser.add_argument('--data', type=str, default='data/penn/',
+parser.add_argument('--data', type=str, default='./data/penn/',
                     help='location of the data corpus')
 parser.add_argument('--model', type=str, default='LSTM',
                     help='type of recurrent net (LSTM, QRNN, GRU)')
@@ -49,7 +49,7 @@ parser.add_argument('--nonmono', type=int, default=5,
                     help='random seed')
 parser.add_argument('--cuda', action='store_false',
                     help='use CUDA')
-parser.add_argument('--log-interval', type=int, default=200, metavar='N',
+parser.add_argument('--log_interval', type=int, default=200, metavar='N',
                     help='report interval')
 randomhash = ''.join(str(time.time()).split('.'))
 parser.add_argument('--save', type=str,  default=randomhash+'.pt',
@@ -194,7 +194,7 @@ def evaluate(data_source, batch_size=10, test=False):
             continue
 
         bs = test_batch_size if test else eval_batch_size
-        hidden = model.init_hidden(2 * bs) 
+        hidden = model.init_hidden(2 * bs)
         hidden = repackage_hidden(hidden)
 
         output, hidden, rnn_hs, dropped_rnn_hs = model(torch.cat([data, data_oe], dim=1), hidden, return_h=True)
@@ -281,15 +281,15 @@ def train():
         loss_bp.backward()
 
         # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
-        if args.clip: torch.nn.utils.clip_grad_norm(params, args.clip)
+        if args.clip: torch.nn.utils.clip_grad_norm_(params, args.clip)
         optimizer.step()
 
         total_loss += raw_loss.data
         total_oe_loss += loss_oe.data
         optimizer.param_groups[0]['lr'] = lr2
         if batch % args.log_interval == 0 and batch > 0:
-            cur_loss = total_loss[0] / args.log_interval
-            cur_oe_loss = total_oe_loss[0] /args.log_interval
+            cur_loss = total_loss.item() / args.log_interval
+            cur_oe_loss = total_oe_loss.item() /args.log_interval
             elapsed = time.time() - start_time
             print('| epoch {:3d} | {:5d}/{:5d} batches | lr {:05.5f} | ms/batch {:5.2f} | '
                     'loss {:5.2f} | oe_loss {:5.2f} | ppl {:8.2f} | bpc {:8.3f}'.format(
