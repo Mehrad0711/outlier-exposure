@@ -62,6 +62,22 @@ class Corpus(object):
         return ids
 
 
+class CorpusAlmond(Corpus):
+    def __init__(self, path, dictionary=None):
+        self.dictionary = Dictionary() if dictionary is None else dictionary
+        self.dictionary.add_word('<init>')
+        self.dictionary.add_word('<eos>')
+        self.dictionary.add_word('<pad>')
+        self.dictionary.add_word('<unk>')
+        self.new_dict = True if dictionary is None else False
+        self.train = self.tokenize(os.path.join(path, 'train.txt'))
+        self.valid = self.tokenize(os.path.join(path, 'valid.txt'))
+        self.test = self.tokenize(os.path.join(path, 'test.txt'))
+        # super().__init__(path, dictionary)
+
+
+
+
 class CorpusWikiTextChar(object):
     def __init__(self, path, dictionary):
         """

@@ -45,7 +45,19 @@ parser.add_argument('--test', '-t', action='store_true', help='Test only flag.')
 parser.add_argument('--mix', dest='mix', action='store_true', help='Mix outliers images with in-dist images.')
 # Acceleration
 parser.add_argument('--prefetch', type=int, default=2, help='Pre-fetching threads.')
+parser.add_argument('--cuda', action='store_false', help='use CUDA')
+parser.add_argument('--seed', type=int, default=1111, help='random seed')
 args = parser.parse_args()
+
+
+# Set the random seed manually for reproducibility.
+np.random.seed(args.seed)
+torch.manual_seed(args.seed)
+if torch.cuda.is_available():
+    if not args.cuda:
+        print("WARNING: You have a CUDA device, so you should probably run with --cuda")
+    else:
+        torch.cuda.manual_seed(args.seed)
 
 
 if args.in_dist_dataset == 'sst':
@@ -106,7 +118,6 @@ elif args.in_dist_dataset == 'trec':
 
 
 
-
 cudnn.benchmark = True  # fire on all cylinders
 
 
@@ -124,8 +135,10 @@ class ClfGRU(nn.Module):
         logits = self.linear(hidden)
         return logits
 
+model = ClfGRU(2)
+if args.cuda:
+    model = model.cuda()
 
-model = ClfGRU(2).cuda()
 
 optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
