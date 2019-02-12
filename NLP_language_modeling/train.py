@@ -313,17 +313,6 @@ lr = args.lr
 best_val_loss = []
 stored_loss = 100000000
 
-
-# Load the best saved model.
-model_load(args.save)
-
-# Run on test data.
-test_loss, val_oe_loss = evaluate(test_data, test_batch_size)
-print('=' * 89)
-print('| End of training | test loss {:5.2f} | val oe_loss {:5.2f} | test ppl {:8.2f} | test bpc {:8.3f}'.format(
-    test_loss, val_oe_loss, math.exp(test_loss), test_loss / math.log(2)))
-print('=' * 89)
-
 # At any point you can hit Ctrl + C to break out of training early.
 try:
     optimizer = None

@@ -70,9 +70,14 @@ class CorpusAlmond(Corpus):
         self.dictionary.add_word('<pad>')
         self.dictionary.add_word('<unk>')
         self.new_dict = True if dictionary is None else False
-        self.train = self.tokenize(os.path.join(path, 'train.txt'))
-        self.valid = self.tokenize(os.path.join(path, 'valid.txt'))
-        self.test = self.tokenize(os.path.join(path, 'test.txt'))
+        for file in os.listdir(path):
+            if file.startswith('train'):
+                self.train = self.tokenize(os.path.join(path, file))
+            elif file.startswith('valid'):
+                self.valid = self.tokenize(os.path.join(path, file))
+            elif file.startswith('test'):
+                self.test = self.tokenize(os.path.join(path, file))
+
         # super().__init__(path, dictionary)
 
 
