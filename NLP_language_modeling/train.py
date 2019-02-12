@@ -92,10 +92,11 @@ def model_save(fn):
 def model_load(fn):
     global model, criterion, optimizer
     with open(fn, 'rb') as f:
-        model, criterion, optimizer = torch.load(f)
+        model, criterion, optimizer = torch.load(f, map_location='cpu')
 
 import os
 import hashlib
+
 fn = 'corpus.{}.data'.format(hashlib.md5(args.data.encode()).hexdigest())
 
 if os.path.exists(fn):
@@ -106,6 +107,8 @@ else:
     if 'penn' in args.data:
         corpus = data.Corpus(args.data)
     elif 'almond' in args.data:
+        corpus = data.CorpusAlmond(args.data)
+    else:
         corpus = data.CorpusAlmond(args.data)
     torch.save(corpus, fn)
 
@@ -140,7 +143,7 @@ criterion = None
 
 ntokens = len(corpus.dictionary)
 model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout, args.dropouth, args.dropouti, args.dropoute, args.wdrop, args.tied)
-###
+# model.flatten_parameters()
 if args.resume:
     print('Resuming model ...')
     model_load(args.resume)
@@ -218,7 +221,7 @@ def evaluate(data_source, batch_size=10, test=False):
         total_loss += loss
         total_oe_loss += loss_oe
         num_batches += 1
-    return total_loss[0] / num_batches, total_oe_loss[0] / num_batches
+    return total_loss / num_batches, total_oe_loss / num_batches
 
 
 def train():
@@ -309,6 +312,17 @@ def train():
 lr = args.lr
 best_val_loss = []
 stored_loss = 100000000
+
+
+# Load the best saved model.
+model_load(args.save)
+
+# Run on test data.
+test_loss, val_oe_loss = evaluate(test_data, test_batch_size)
+print('=' * 89)
+print('| End of training | test loss {:5.2f} | val oe_loss {:5.2f} | test ppl {:8.2f} | test bpc {:8.3f}'.format(
+    test_loss, val_oe_loss, math.exp(test_loss), test_loss / math.log(2)))
+print('=' * 89)
 
 # At any point you can hit Ctrl + C to break out of training early.
 try:

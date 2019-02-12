@@ -20,7 +20,6 @@ if __package__ is None:
 
     sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
     from utils.display_results import show_performance
-    from utils.log_sum_exp import log_sum_exp
 
 parser = argparse.ArgumentParser(description='PyTorch PennTreeBank RNN/LSTM Language Model')
 parser.add_argument('--data', type=str, default='data/penn/',
@@ -100,7 +99,7 @@ def model_save(fn):
 def model_load(fn):
     global model, criterion, optimizer
     with open(fn, 'rb') as f:
-        model, criterion, optimizer = torch.load(f)
+        model, criterion, optimizer = torch.load(f, map_location='cpu')
 
 import os
 import hashlib
@@ -110,7 +109,10 @@ if os.path.exists(fn):
     corpus = torch.load(fn)
 else:
     print('Producing dataset...')
-    corpus = data.Corpus(args.data)
+    if 'penn' in args.data:
+        corpus = data.Corpus(args.data)
+    elif 'almond' in args.data:
+        corpus = data.CorpusAlmond(args.data)
     torch.save(corpus, fn)
 
 eval_batch_size = 10
@@ -122,20 +124,25 @@ test_data = batchify(corpus.test, test_batch_size, args)
 
 print('Producing ood datasets...')
 
-answers_corpus = data.OODCorpus('eng_web_tbk/answers/conll/answers_penntrees.dev.conll', corpus.dictionary, char=args.character_level)
-answers_data = batchify(answers_corpus.data, test_batch_size, args)
+# answers_corpus = data.OODCorpus('eng_web_tbk/answers/conll/answers_penntrees.dev.conll', corpus.dictionary, char=args.character_level)
+# answers_data = batchify(answers_corpus.data, test_batch_size, args)
+#
+# email_corpus = data.OODCorpus('eng_web_tbk/email/conll/email_penntrees.dev.conll', corpus.dictionary, char=args.character_level)
+# email_data = batchify(email_corpus.data, test_batch_size, args)
+#
+# newsgroup_corpus = data.OODCorpus('eng_web_tbk/newsgroup/conll/newsgroup_penntrees.dev.conll', corpus.dictionary, char=args.character_level)
+# newsgroup_data = batchify(newsgroup_corpus.data, test_batch_size, args)
+#
+# reviews_corpus = data.OODCorpus('eng_web_tbk/reviews/conll/reviews_penntrees.dev.conll', corpus.dictionary, char=args.character_level)
+# reviews_data = batchify(reviews_corpus.data, test_batch_size, args)
+#
+# weblog_corpus = data.OODCorpus('eng_web_tbk/weblog/conll/weblog_penntrees.dev.conll', corpus.dictionary, char=args.character_level)
+# weblog_data = batchify(weblog_corpus.data, test_batch_size, args)
 
-email_corpus = data.OODCorpus('eng_web_tbk/email/conll/email_penntrees.dev.conll', corpus.dictionary, char=args.character_level)
-email_data = batchify(email_corpus.data, test_batch_size, args)
+extra_corpus = data.OODCorpus_extra('./data/mixed/test.txt', corpus.dictionary)
+extra_data = batchify(extra_corpus.data, test_batch_size, args)
 
-newsgroup_corpus = data.OODCorpus('eng_web_tbk/newsgroup/conll/newsgroup_penntrees.dev.conll', corpus.dictionary, char=args.character_level)
-newsgroup_data = batchify(newsgroup_corpus.data, test_batch_size, args)
 
-reviews_corpus = data.OODCorpus('eng_web_tbk/reviews/conll/reviews_penntrees.dev.conll', corpus.dictionary, char=args.character_level)
-reviews_data = batchify(reviews_corpus.data, test_batch_size, args)
-
-weblog_corpus = data.OODCorpus('eng_web_tbk/weblog/conll/weblog_penntrees.dev.conll', corpus.dictionary, char=args.character_level)
-weblog_data = batchify(weblog_corpus.data, test_batch_size, args)
 
 
 ###############################################################################
@@ -201,7 +208,7 @@ def get_base_rates():
     for i in range(0, train_data.size(0), args.bptt):  # Assume OE dataset is larger. It is, because we're using wikitext-2.
         data, targets = get_batch(train_data, i, args, seq_len=seq_len)
         for j in range(targets.numel()):
-            token_counts[targets[j].data.cpu().numpy()[0]] += 1
+            token_counts[targets[j].data.cpu().numpy()] += 1
             total_count += 1
         batch += 1
 
@@ -209,10 +216,10 @@ def get_base_rates():
 
 
 print('Getting base rates...')
-# base_rates = get_base_rates()
-# np.save('./base_rates.npy', base_rates)
-base_rates = Variable(torch.from_numpy(np.load('./base_rates.npy').astype(np.float32))).cuda().float().squeeze()  # shit happens
-uniform_base_rates = Variable(torch.from_numpy(np.ones(len(corpus.dictionary)).astype(np.float32))).cuda().float().squeeze()
+base_rates = get_base_rates()
+np.save('./base_rates.npy', base_rates)
+base_rates = Variable(torch.from_numpy(np.load('./base_rates.npy').astype(np.float32))).float().squeeze()  # shit happens
+uniform_base_rates = Variable(torch.from_numpy(np.ones(len(corpus.dictionary)).astype(np.float32))).float().squeeze()
 uniform_base_rates /= uniform_base_rates.numel()
 print('Done.')
 
@@ -238,18 +245,17 @@ def evaluate(data_source, corpus, batch_size=10, ood=False):
         smaxes = F.softmax(logits - torch.max(logits, dim=1, keepdim=True)[0], dim=1)
         tmp = smaxes[range(targets.size(0)), targets]
         log_prob = torch.log(tmp).mean(0)  # divided by seq len, so this is the negative nats per char
-        loss = -log_prob.data.cpu().numpy()[0]
+        loss = -log_prob.data.cpu().numpy()
         
         loss_accum += loss
         # losses.append(loss)
         # Experimental!
-        # anomaly_score = -torch.max(smaxes, dim=1)[0].mean()  # negative MSP
-        anomaly_score = ((smaxes).add(1e-18).log() * uniform_base_rates.unsqueeze(0)).sum(1).mean(0)  # negative KL to uniform
-        losses.append(anomaly_score.data.cpu().numpy()[0])
+        anomaly_score = -torch.max(smaxes, dim=1)[0].mean()  # negative MSP
+        # anomaly_score = ((smaxes).add(1e-18).log() * uniform_base_rates.unsqueeze(0)).sum(1).mean(0)  # negative KL to uniform
+        losses.append(anomaly_score.data.cpu().numpy())
         #
 
     return loss_accum / (len(data_source) // args.bptt), losses
-
 
 
 # Run on test data.
@@ -261,46 +267,54 @@ print('| End of training | test loss {:5.2f} | test ppl {:8.2f} | test bpc {:8.3
 print('=' * 89)
 
 
-print('\nAnswers (OOD)')
-ood_loss, ood_losses = evaluate(answers_data, answers_corpus, test_batch_size, ood=True)
+# print('\nAnswers (OOD)')
+# ood_loss, ood_losses = evaluate(answers_data, answers_corpus, test_batch_size, ood=True)
+# print('=' * 89)
+# print('| End of training | test loss {:5.2f} | test ppl {:8.2f} | test bpc {:8.3f}'.format(
+#     ood_loss, math.exp(ood_loss), ood_loss / math.log(2)))
+# print('=' * 89)
+# show_performance(ood_losses, test_losses, expected_ap, recall_level=recall_level)
+#
+#
+# print('\nEmail (OOD)')
+# ood_loss, ood_losses = evaluate(email_data, email_corpus, test_batch_size, ood=True)
+# print('=' * 89)
+# print('| End of training | test loss {:5.2f} | test ppl {:8.2f} | test bpc {:8.3f}'.format(
+#     ood_loss, math.exp(ood_loss), ood_loss / math.log(2)))
+# print('=' * 89)
+# show_performance(ood_losses, test_losses, expected_ap, recall_level=recall_level)
+#
+#
+# print('\nNewsgroup (OOD)')
+# ood_loss, ood_losses = evaluate(newsgroup_data, newsgroup_corpus, test_batch_size, ood=True)
+# print('=' * 89)
+# print('| End of training | test loss {:5.2f} | test ppl {:8.2f} | test bpc {:8.3f}'.format(
+#     ood_loss, math.exp(ood_loss), ood_loss / math.log(2)))
+# print('=' * 89)
+# show_performance(ood_losses, test_losses, expected_ap, recall_level=recall_level)
+#
+#
+# print('\nReviews (OOD)')
+# ood_loss, ood_losses = evaluate(reviews_data, reviews_corpus, test_batch_size, ood=True)
+# print('=' * 89)
+# print('| End of training | test loss {:5.2f} | test ppl {:8.2f} | test bpc {:8.3f}'.format(
+#     ood_loss, math.exp(ood_loss), ood_loss / math.log(2)))
+# print('=' * 89)
+# show_performance(ood_losses, test_losses, expected_ap, recall_level=recall_level)
+#
+#
+# print('\nWeblog (OOD)')
+# ood_loss, ood_losses = evaluate(weblog_data, weblog_corpus, test_batch_size, ood=True)
+# print('=' * 89)
+# print('| End of training | test loss {:5.2f} | test ppl {:8.2f} | test bpc {:8.3f}'.format(
+#     ood_loss, math.exp(ood_loss), ood_loss / math.log(2)))
+# print('=' * 89)
+# show_performance(ood_losses, test_losses, expected_ap, recall_level=recall_level)
+
+print('\nExtra (OOD)')
+ood_loss, ood_losses = evaluate(extra_data, extra_corpus, test_batch_size, ood=True)
 print('=' * 89)
 print('| End of training | test loss {:5.2f} | test ppl {:8.2f} | test bpc {:8.3f}'.format(
     ood_loss, math.exp(ood_loss), ood_loss / math.log(2)))
 print('=' * 89)
-show_performance(ood_losses, test_losses, expected_ap, recall_level=recall_level)
-
-
-print('\nEmail (OOD)')
-ood_loss, ood_losses = evaluate(email_data, email_corpus, test_batch_size, ood=True)
-print('=' * 89)
-print('| End of training | test loss {:5.2f} | test ppl {:8.2f} | test bpc {:8.3f}'.format(
-    ood_loss, math.exp(ood_loss), ood_loss / math.log(2)))
-print('=' * 89)
-show_performance(ood_losses, test_losses, expected_ap, recall_level=recall_level)
-
-
-print('\nNewsgroup (OOD)')
-ood_loss, ood_losses = evaluate(newsgroup_data, newsgroup_corpus, test_batch_size, ood=True)
-print('=' * 89)
-print('| End of training | test loss {:5.2f} | test ppl {:8.2f} | test bpc {:8.3f}'.format(
-    ood_loss, math.exp(ood_loss), ood_loss / math.log(2)))
-print('=' * 89)
-show_performance(ood_losses, test_losses, expected_ap, recall_level=recall_level)
-
-
-print('\nReviews (OOD)')
-ood_loss, ood_losses = evaluate(reviews_data, reviews_corpus, test_batch_size, ood=True)
-print('=' * 89)
-print('| End of training | test loss {:5.2f} | test ppl {:8.2f} | test bpc {:8.3f}'.format(
-    ood_loss, math.exp(ood_loss), ood_loss / math.log(2)))
-print('=' * 89)
-show_performance(ood_losses, test_losses, expected_ap, recall_level=recall_level)
-
-
-print('\nWeblog (OOD)')
-ood_loss, ood_losses = evaluate(weblog_data, weblog_corpus, test_batch_size, ood=True)
-print('=' * 89)
-print('| End of training | test loss {:5.2f} | test ppl {:8.2f} | test bpc {:8.3f}'.format(
-    ood_loss, math.exp(ood_loss), ood_loss / math.log(2)))
-print('=' * 89)
-show_performance(ood_losses, test_losses, expected_ap, recall_level=recall_level)
+show_performance(ood_losses, test_losses, method_name=str(expected_ap), recall_level=recall_level)

@@ -9,6 +9,7 @@ __pycache__/
 __pycache__/
 models/__pycache__/
 multiprocess/__pycache__/
+utils/__pycache__/
 results/
 
 .DS_Store
@@ -19,7 +20,9 @@ text/.DS_Store
 src/
 data/
 corpus*
-
+PTBC_*
+base_rates.npy
+utils/__pycache__/*
 
 # C extensions
 *.so

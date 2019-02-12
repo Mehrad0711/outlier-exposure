@@ -77,7 +77,6 @@ class CorpusAlmond(Corpus):
 
 
 
-
 class CorpusWikiTextChar(object):
     def __init__(self, path, dictionary):
         """
@@ -158,5 +157,47 @@ class OODCorpus(object):
                 else:
                     corpus.append(word)
                     ids.append(self.dictionary.word2idx.get(word, self.dictionary.word2idx['<unk>']))
+
+        return corpus, torch.LongTensor(ids)
+
+
+class OODCorpus_extra(object):
+    def __init__(self, path, dictionary, char=False):
+        """
+        :param path: path to train, val, or test data
+        :param dictionary: existing dictionary of words constructed with Corpus class on in-dist
+        :param char: if True, return character-level data
+        """
+        self.dictionary = dictionary
+        self.data_words, self.data = self.tokenize(path, char)
+
+    def tokenize(self, path, char=False):
+        """Tokenizes a text file."""
+        assert os.path.exists(path)
+        # Add words to the dictionary
+        corpus = []
+        ids = []
+        with open(path, 'r') as f:
+            for line in f:
+                if len(line) == 1:  # end of example
+                    if char:
+                        corpus.append('<eos>')
+                        ids.append(self.dictionary.word2idx['<eos>'])
+                    else:
+                        corpus.append('<eos>')
+                        ids.append(self.dictionary.word2idx['<eos>'])
+                    continue
+                words = line.strip().split()
+                for word in words:
+                    if char:
+                        if word not in self.dictionary.word2idx.keys():
+                            word = '<unk>'
+                        corpus.extend(list(word))
+                        corpus.append('_')
+                        ids.extend([self.dictionary.word2idx[char] for char in word])
+                        ids.append(self.dictionary.word2idx['_'])
+                    else:
+                        corpus.append(word)
+                        ids.append(self.dictionary.word2idx.get(word, self.dictionary.word2idx['<unk>']))
 
         return corpus, torch.LongTensor(ids)
