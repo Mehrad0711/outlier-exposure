@@ -24,6 +24,8 @@ if __package__ is None:
 parser = argparse.ArgumentParser(description='PyTorch PennTreeBank RNN/LSTM Language Model')
 parser.add_argument('--data', type=str, default='data/penn/',
                     help='location of the data corpus')
+parser.add_argument('--ood_data', type=str,
+                    help='location of the ood data corpus')
 parser.add_argument('--model', type=str, default='LSTM',
                     help='type of recurrent net (LSTM, QRNN, GRU)')
 parser.add_argument('--emsize', type=int, default=400,
@@ -56,7 +58,7 @@ parser.add_argument('--seed', type=int, default=1111,
                     help='random seed')
 parser.add_argument('--nonmono', type=int, default=5,
                     help='random seed')
-parser.add_argument('--cuda', action='store_false',
+parser.add_argument('--cuda', action='store_true',
                     help='use CUDA')
 parser.add_argument('--log-interval', type=int, default=200, metavar='N',
                     help='report interval')
@@ -66,7 +68,7 @@ parser.add_argument('--save', type=str,  default=randomhash+'.pt',
 parser.add_argument('--alpha', type=float, default=2,
                     help='alpha L2 regularization on RNN activation (alpha = 0 means no regularization)')
 parser.add_argument('--beta', type=float, default=1,
-                    help='beta slowness regularization applied on RNN activiation (beta = 0 means no regularization)')
+                    help='beta slowness regularization applied on RNN activation (beta = 0 means no regularization)')
 parser.add_argument('--wdecay', type=float, default=1.2e-6,
                     help='weight decay applied to all weights')
 parser.add_argument('--resume', type=str,  default='',
@@ -139,7 +141,7 @@ print('Producing ood datasets...')
 # weblog_corpus = data.OODCorpus('eng_web_tbk/weblog/conll/weblog_penntrees.dev.conll', corpus.dictionary, char=args.character_level)
 # weblog_data = batchify(weblog_corpus.data, test_batch_size, args)
 
-extra_corpus = data.OODCorpus_extra('./data/mixed/test.txt', corpus.dictionary)
+extra_corpus = data.OODCorpus_extra(args.ood_data, corpus.dictionary)
 extra_data = batchify(extra_corpus.data, test_batch_size, args)
 
 

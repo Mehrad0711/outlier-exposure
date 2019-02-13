@@ -2,7 +2,6 @@ import torch
 
 def repackage_hidden(h):
     """Wraps hidden states in new Variables, to detach them from their history."""
-    # if type(h) == Variable:
     if isinstance(h, torch.Tensor):
         return h.data
     else:

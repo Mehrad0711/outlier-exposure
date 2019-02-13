@@ -15,6 +15,8 @@ from utils_lm import batchify, get_batch, repackage_hidden
 parser = argparse.ArgumentParser(description='Train with OE using cross-entropy to uniform.')
 parser.add_argument('--data', type=str, default='./data/penn/',
                     help='location of the data corpus')
+parser.add_argument('--ood_data', type=str, default='data/wikitext-2',
+                    help='location of the ood data corpus')
 parser.add_argument('--model', type=str, default='LSTM',
                     help='type of recurrent net (LSTM, QRNN, GRU)')
 parser.add_argument('--emsize', type=int, default=400,
@@ -47,7 +49,7 @@ parser.add_argument('--seed', type=int, default=1111,
                     help='random seed')
 parser.add_argument('--nonmono', type=int, default=5,
                     help='random seed')
-parser.add_argument('--cuda', action='store_false',
+parser.add_argument('--cuda', action='store_true',
                     help='use CUDA')
 parser.add_argument('--log_interval', type=int, default=200, metavar='N',
                     help='report interval')
@@ -92,7 +94,7 @@ def model_save(fn):
 def model_load(fn):
     global model, criterion, optimizer
     with open(fn, 'rb') as f:
-        model, criterion, optimizer = torch.load(f, map_location='cpu')
+        model, criterion, optimizer = torch.load(f, map_location=torch.device('cuda') if args.cuda else torch.device('cpu'))
 
 import os
 import hashlib
@@ -113,7 +115,8 @@ else:
     torch.save(corpus, fn)
 
 eval_batch_size = 10
-test_batch_size = 1
+# test_batch_size = 1
+test_batch_size = 10
 train_data = batchify(corpus.train, args.batch_size, args)
 val_data = batchify(corpus.valid, eval_batch_size, args)
 test_data = batchify(corpus.test, test_batch_size, args)
@@ -129,7 +132,7 @@ if args.wikitext_char:
     oe_dataset = batchify(oe_corpus.train, args.batch_size, args)
     oe_val_dataset = batchify(oe_corpus.valid, eval_batch_size, args)
 else:
-    oe_corpus = data.Corpus('data/wikitext-2', corpus.dictionary)
+    oe_corpus = data.Corpus(args.ood_data, corpus.dictionary)
 
     oe_dataset = batchify(oe_corpus.train, args.batch_size, args)
     oe_val_dataset = batchify(oe_corpus.valid, eval_batch_size, args)
