@@ -4,11 +4,12 @@ import math
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.autograd import Variable
 import torch.nn.functional as F
 
 import data
 import model
+import os
+import sys
 
 from utils_lm import batchify, get_batch, repackage_hidden
 
@@ -96,22 +97,23 @@ def model_load(fn):
     with open(fn, 'rb') as f:
         model, criterion, optimizer = torch.load(f, map_location=torch.device('cuda') if args.cuda else torch.device('cpu'))
 
-import os
-import hashlib
 
-fn = 'corpus.{}.data'.format(hashlib.md5(args.data.encode()).hexdigest())
+fn = os.path.join(args.data, 'cached/cached_file.pt')
 
 if os.path.exists(fn):
     print('Loading cached dataset...')
     corpus = torch.load(fn)
 else:
+    os.makedirs(os.path.dirname(fn), exist_ok=True)
     print('Producing dataset...')
     if 'penn' in args.data:
         corpus = data.Corpus(args.data)
     elif 'almond' in args.data:
         corpus = data.CorpusAlmond(args.data)
     else:
-        corpus = data.CorpusAlmond(args.data)
+        print('this dataset is not supported yet!')
+        sys.exit(1)
+
     torch.save(corpus, fn)
 
 eval_batch_size = 10
@@ -125,7 +127,7 @@ test_data = batchify(corpus.test, test_batch_size, args)
 # Load OE data
 ###############################################################################
 
-print('Producing dataset...')
+print('Producing dataset for OE data')
 if args.wikitext_char:
     oe_corpus = data.CorpusWikiTextChar('data/wikitext-2', corpus.dictionary)
 
@@ -146,7 +148,7 @@ criterion = None
 
 ntokens = len(corpus.dictionary)
 model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout, args.dropouth, args.dropouti, args.dropoute, args.wdrop, args.tied)
-# model.flatten_parameters()
+
 if args.resume:
     print('Resuming model ...')
     model_load(args.resume)

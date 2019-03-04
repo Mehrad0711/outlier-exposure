@@ -9,6 +9,8 @@ import torch.nn.functional as F
 
 import data
 import model
+import os
+import sys
 
 from utils_lm import batchify, get_batch, repackage_hidden
 
@@ -94,15 +96,22 @@ def model_load(fn):
     with open(fn, 'rb') as f:
         model, criterion, optimizer = torch.load(f)
 
-import os
-import hashlib
-fn = 'corpus.{}.data'.format(hashlib.md5(args.data.encode()).hexdigest())
+fn = os.path.join(args.data, 'cached/cached_file.pt')
+
 if os.path.exists(fn):
     print('Loading cached dataset...')
     corpus = torch.load(fn)
 else:
+    os.makedirs(os.path.dirname(fn), exist_ok=True)
     print('Producing dataset...')
-    corpus = data.Corpus(args.data)
+    if 'penn' in args.data:
+        corpus = data.Corpus(args.data)
+    elif 'almond' in args.data:
+        corpus = data.CorpusAlmond(args.data)
+    else:
+        print('this dataset is not supported yet!')
+        sys.exit(1)
+
     torch.save(corpus, fn)
 
 eval_batch_size = 10
